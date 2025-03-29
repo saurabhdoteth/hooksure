@@ -1,66 +1,54 @@
-## Foundry
+# HookSure
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+HookSure is a Uniswap v4 hook that calculates and compensates for impermanent loss in concentrated liquidity positions.
 
-Foundry consists of:
+## Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+HookSure implements an IL protection mechanism for liquidity providers (LPs) in Uniswap v4 pools by:
 
-## Documentation
+1. Calculating and collecting premium payments when LPs add liquidity
+2. Tracking position details including initial price and liquidity amount
+3. Computing impermanent loss (IL) when LPs remove liquidity
+4. Automatically executing payouts when IL is detected
 
-https://book.getfoundry.sh/
+## Inspiration
 
-## Usage
+HookSure adapts Andre Cronje's Protection Market model (designed for Uniswap v2) to work with Uniswap v4's hook system. The implementation uses v4 hooks to intercept liquidity addition/removal events, integrating protection directly in the position lifecycle rather than requiring separate protection contracts.
 
-### Build
+Original inspiration: [Protection Market by Andre Cronje](https://gist.github.com/andrecronje/6db9aa9873a37f9c69a6519448074690)
 
-```shell
-$ forge build
-```
+## Features
 
-### Test
+- **Dynamic Premiums**: Calculates premiums based on pool utilization metrics (0.5% base + utilization factor)
+- **Configurable Risk Parameters**: Allows setting maximum payout limits per position and pool
+- **Concentrated Liquidity Compatibility**: Implements IL calculations tuned for concentrated positions
 
-```shell
-$ forge test
-```
+## Technical Details
 
-### Format
+### Hook Integration
 
-```shell
-$ forge fmt
-```
+HookSure implements Uniswap v4's `BaseHook` and utilizes the following hook points:
+- `afterAddLiquidity`: Records position details and collects premiums
+- `afterRemoveLiquidity`: Calculates IL and executes payouts
+- `afterSwap`: Tracks price changes within the pool
 
-### Gas Snapshots
+### Premium Calculation
 
-```shell
-$ forge snapshot
-```
+Premiums are calculated using a dynamic formula based on:
+- Base premium rate (0.5%)
+- Pool utilization ratio
+- Amount of liquidity added to a range
 
-### Anvil
+### Impermanent Loss Calculation
 
-```shell
-$ anvil
-```
+IL is calculated by comparing position values between entry and exit price:
+- Uses the exact initial tick and final tick
+- Applies concentrated liquidity-specific IL formula
+- Limits payouts to configurable maximums
 
-### Deploy
+The IL calculation is based on the formula derived in [Impermanent Loss in Uniswap V3](https://medium.com/auditless/impermanent-loss-in-uniswap-v3-6c7161d3b445) by Peteris Erins, which specifically accounts for the amplified IL effect in concentrated liquidity positions.
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+### Coverage Limits
 
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- `maxPayoutPerPosition`: Limits the payout for any single position (default 50% of protected amount)
+- `maxTotalCoverage`: Caps the total coverage for a pool (default 1,000,000 tokens)
